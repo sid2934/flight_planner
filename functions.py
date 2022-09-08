@@ -129,7 +129,6 @@ def create_flight_line(waypoints_lyr, crs_vect):
     flight_line.updateExtents()
     return flight_line
 
-
 def create_waypoints(projection_centres, crs_vect):
     """Create points where altitude or direction of flight change."""
 
@@ -219,7 +218,6 @@ def simplify_profile(vertices, epsilon):
 def distance2d(a, b):
     return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2)
 
-
 def points_pixel_centroids(geotransform, shape):
     """Return pixel centroids for the raster."""
 
@@ -285,17 +283,17 @@ def gsd(DTM, geotransform, Xs, Ys, Zs, Xs_, Ys_, Zs_, f, size_sensor):
         a, b = line(Ys, Ys_, Xs, Xs_)
         # line perpendicular to photo's greatest fall line
         if a != 0:
-            a_l_ = -1 / a
+            a_perp = -1 / a
         else:
-            a_l_ = -1 / 0.000000000000000001
+            a_perp = -1 / 0.000000000000000001
 
         pxpy = points_pixel_centroids(geotransform, DTM.shape)
         px = pxpy[:, 0]
         py = pxpy[:, 1]
 
-        b_l_ = py - a_l_ * px
+        b_perp = py - a_perp * px
         # projection point on photo's greatest fall line
-        ppx, ppy = lines_intersection(a_l_, b_l_, a, b)
+        ppx, ppy = lines_intersection(a_perp, b_perp, a, b)
         # vector projection center - projection point
         Z = DTM
         vect_S_pp = np.array([ppx - Xs, ppy - Ys, (Z - Zs).flatten()])
@@ -406,69 +404,72 @@ def bounding_box_at_angle(alpha, geom):
     that follow the sides of the bounding box."""
     # exception due to tan(90) and tan(270) is equal to infinity
     if alpha != 90 and alpha != 270:
-        # variable_ll means parallel, variable_l_ means perpendicular
-        # to main direction of flight
-        a_ll = tan(alpha * pi / 180)
+        # <variable>_para means parallel, <variable>_perp means perpendicular
+        # to main direction of flight. 
+        # a_<para|perp> is the slope of the line, b_<para|perp> is the y-intercept
+        # for an equation of form y = ax + b
+        a_para = tan(alpha * pi / 180)
 
         # exception for division by zero
-        if a_ll != 0:
-            a_l_ = -1 / a_ll
+        if a_para != 0:
+            a_perp = -1 / a_para
         else:
-            a_l_ = -1 / 0.000000000000000001
+            a_perp = -1 / 0.000000000000000001
 
         # parallel and perpendicular line to the direction of flight
         # through the center of the area of interest
         x_centr = geom.centroid().asPoint().x()
         y_centr = geom.centroid().asPoint().y()
-        b_ll = y_centr - a_ll * x_centr
-        b_l_ = y_centr - a_l_ * x_centr
+        b_para = y_centr - a_para * x_centr
+        b_perp = y_centr - a_perp * x_centr
 
         # converting the coefficients of both lines y = ax + b 
         # to the form Ax + By + C = 0 
-        A_ll = a_ll
-        B_ll = -1
-        C_ll = b_ll
-        A_l_ = a_l_
-        B_l_ = -1
-        C_l_ = b_l_
+        A_para = a_para
+        B_para = -1
+        C_para = b_para
+
+        A_perp = a_perp
+        B_perp = -1
+        C_perp = b_perp
 
         # the purpose of all the code below is to find the equations of
         # the two lines that coincide the sides of the range rectangle
-        vrtx_dist_ll = []
-        vrtx_dist_l_ = []
+        vertex_dist_para = []
+        vertex_dist_perp = []
         # compute distances from parallel and perpendicular lines
         # to the flight direction to every vertex of geometry
         for vertex in range(len(geom.convertToType(1).asPolyline())):
             vX = geom.vertexAt(vertex).x()
             vY = geom.vertexAt(vertex).y()
-            d_ll = (A_ll * vX + B_ll * vY + C_ll) / sqrt(A_ll ** 2 + B_ll ** 2)
-            vrtx_dist_ll.append(d_ll)
-            d_l_ = (A_l_ * vX + B_l_ * vY + C_l_) / sqrt(A_l_ ** 2 + B_l_ ** 2)
-            vrtx_dist_l_.append(d_l_)
+            d_para = (A_para * vX + B_para * vY + C_para) / sqrt(A_para ** 2 + B_para ** 2)
+            vertex_dist_para.append(d_para)
+            d_perp = (A_perp * vX + B_perp * vY + C_perp) / sqrt(A_perp ** 2 + B_perp ** 2)
+            vertex_dist_perp.append(d_perp)
 
         # index of vertices with max and min distance from the lines
-        i1_ll = vrtx_dist_ll.index(max(vrtx_dist_ll))
-        i2_ll = vrtx_dist_ll.index(min(vrtx_dist_ll))
-        i1_l_ = vrtx_dist_l_.index(max(vrtx_dist_l_))
-        i2_l_ = vrtx_dist_l_.index(min(vrtx_dist_l_))
+        i1_para = vertex_dist_para.index(max(vertex_dist_para))
+        i2_para = vertex_dist_para.index(min(vertex_dist_para))
+        i1_perp = vertex_dist_perp.index(max(vertex_dist_perp))
+        i2_perp = vertex_dist_perp.index(min(vertex_dist_perp))
         # calculate factors b of equation y = ax + b
-        b1_ll = geom.vertexAt(i1_ll).y() - a_ll * geom.vertexAt(i1_ll).x()
-        b2_ll = geom.vertexAt(i2_ll).y() - a_ll * geom.vertexAt(i2_ll).x()
-        b1_l_ = geom.vertexAt(i1_l_).y() - a_l_ * geom.vertexAt(i1_l_).x()
-        b2_l_ = geom.vertexAt(i2_l_).y() - a_l_ * geom.vertexAt(i2_l_).x()
+        b1_para = geom.vertexAt(i1_para).y() - a_para * geom.vertexAt(i1_para).x()
+        b2_para = geom.vertexAt(i2_para).y() - a_para * geom.vertexAt(i2_para).x()
+        b1_perp = geom.vertexAt(i1_perp).y() - a_perp * geom.vertexAt(i1_perp).x()
+        b2_perp = geom.vertexAt(i2_perp).y() - a_perp * geom.vertexAt(i2_perp).x()
         # calculate dimensions of bounding box
-        Dy = fabs(b1_ll - b2_ll) / sqrt(A_ll ** 2 + B_ll ** 2)
-        Dx = fabs(b1_l_ - b2_l_) / sqrt(A_l_ ** 2 + B_l_ ** 2)
+        Dy = fabs(b1_para - b2_para) / sqrt(A_para ** 2 + B_para ** 2)
+        Dx = fabs(b1_perp - b2_perp) / sqrt(A_perp ** 2 + B_perp ** 2)
         # select "b" of line lying "to the left" of flight direction
         if alpha > 90 and alpha < 270:
-            b_ll = min(b1_ll, b2_ll)
+            b_para = min(b1_para, b2_para)
         else:
-            b_ll = max(b1_ll, b2_ll)
+            b_para = max(b1_para, b2_para)
         # select "b" of line lying "behind" the direction of flight
         if alpha >= 0 and alpha <= 180:
-            b_l_ = min(b1_l_, b2_l_)
+            b_perp = min(b1_perp, b2_perp)
         else:
-            b_l_ = max(b1_l_, b2_l_)
+            b_perp = max(b1_perp, b2_perp)
     else:
         x_max = geom.boundingBox().xMaximum()
         x_min = geom.boundingBox().xMinimum()
@@ -479,12 +480,12 @@ def bounding_box_at_angle(alpha, geom):
         Dy = x_max - x_min
         # lines lying "to the left" and "behind" of flight direction
         if alpha == 270:
-            a_ll, b_ll = line(y_max, y_min, x_max, x_max)
-            a_l_, b_l_ = line(y_max, y_max, x_min, x_max)
+            a_para, b_para = line(y_max, y_min, x_max, x_max)
+            a_perp, b_perp = line(y_max, y_max, x_min, x_max)
         else:
-            a_ll, b_ll = line(y_max, y_min, x_min, x_min)
-            a_l_, b_l_ = line(y_min, y_min, x_min, x_max)
-    return a_ll, b_ll, a_l_, b_l_, Dx, Dy
+            a_para, b_para = line(y_max, y_min, x_min, x_min)
+            a_perp, b_perp = line(y_min, y_min, x_min, x_max)
+    return a_para, b_para, a_perp, b_perp, Dx, Dy
 
 
 def forward(strip, photo, nr_photos_in_strip):
@@ -593,7 +594,7 @@ def strips_projection_centres_number(Dx, Dy, Bx, By, Ly, m, x):
     return Nx, Ny
 
 
-def projection_centres(alpha, geometry, crs_vect, a_ll, b_ll, a_l_, b_l_,
+def projection_centres(alpha, geometry, crs_vect, a_para, b_para, a_perp, b_perp,
                        Dx, Dy, Bx, By, Lx, Ly, x, m, H, strip_nr, photo_nr):
     """Create QgsVectorLayer of projection centers with attribute table
     and QgsVectorLayer range of photos at average terrain height."""
@@ -616,9 +617,9 @@ def projection_centres(alpha, geometry, crs_vect, a_ll, b_ll, a_l_, b_l_,
     # line moved away from line of bounding box, parallel to flight direction
     # converting the coefficients of both lines y = ax + b
     # to the form Ax + By + C = 0
-    A = a_ll
+    A = a_para
     B = -1
-    C1 = b_ll
+    C1 = b_para
     if alpha > 90 and alpha <= 270:
         C2 = C1 + (0.5 - x / 100) * Ly * sqrt(A ** 2 + B ** 2)
         if Ny == 1:
@@ -627,19 +628,19 @@ def projection_centres(alpha, geometry, crs_vect, a_ll, b_ll, a_l_, b_l_,
         C2 = C1 - (0.5 - x / 100) * Ly * sqrt(A ** 2 + B ** 2)
         if Ny == 1:
             C2 = C1 - Dy / 2 * sqrt(A ** 2 + B ** 2)
-    a1 = a_ll
+    a1 = a_para
     b1 = C2
 
     # center projection centers relative to the bounding box
     D = ((ceil(Dx / Bx)) * Bx - Dx) / 2
-    A2 = a_l_
+    A2 = a_perp
     B2 = -1
-    C12 = b_l_
+    C12 = b_perp
     if 0 <= alpha <= 180:
         C22 = C12 - D * sqrt(A2 ** 2 + B2 ** 2)
     else:
         C22 = C12 + D * sqrt(A2 ** 2 + B2 ** 2)
-    a2 = a_l_
+    a2 = a_perp
     b2 = C22
     # coordinates of the center projection of reference 
     x0, y0 = lines_intersection(a1, b1, a2, b2)
@@ -670,6 +671,10 @@ def projection_centres(alpha, geometry, crs_vect, a_ll, b_ll, a_l_, b_l_,
     prov_photos.addAttributes([QgsField("Strip", QVariant.String),
                                QgsField("Photo Number", QVariant.String)])
     photo_layer.updateFields()
+    if 0 <= alpha <= 180:
+        kappa = alpha
+    else:
+        kappa = alpha - 360
     d = sqrt((Lx / 2) ** 2 + (Ly / 2) ** 2)
     theta = fabs(atan2(Ly / 2, Lx / 2))
 
